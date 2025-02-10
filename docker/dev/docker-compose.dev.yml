@@ -1,0 +1,30 @@
+name: StartsJokes
+
+services:
+  bot:
+    build:
+      context: ../..
+      dockerfile: docker/dev/dockerfile.dev
+    image: bot-image
+    container_name: bot-container
+    volumes:
+      - ../../bot:/bot
+    env_file:
+      - ../../bot/.env
+    depends_on:
+      - postgres
+    command: sh -c "python main.py"
+
+  postgres:
+    image: postgres:alpine
+    container_name: postgres-container
+    env_file:
+      - ../../bot/.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+
+volumes:
+  postgres_data:
