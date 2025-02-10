@@ -1,7 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
-from anecdotes.kbs import rate_anecdote_kb
+from anecdotes.utils import send_next_anecdote
 from users.kbs import main_user_kb
 from sqlalchemy.ext.asyncio import AsyncSession
 from anecdotes.schemas import AnecdoteModel
@@ -9,7 +9,7 @@ from anecdotes.dao import AnecdoteDAO, RateDAO
 from users.dao import UserDAO
 from users.schemas import TelegramIDModel
 from pydantic import ValidationError
-from anecdotes.states import AnecdoteStates, RateStates
+from anecdotes.states import AnecdoteStates
 from anecdotes.kbs import RateCallbackFactory, rated_anecdote_kb, back_to_start_kb
 from anecdotes.schemas import RateModel, RateModelUserId
 
@@ -23,6 +23,7 @@ async def start_write_anecdote(callback: CallbackQuery, state: FSMContext):
         reply_markup=back_to_start_kb(),
     )
     await state.set_state(AnecdoteStates.waiting_for_text)
+
 
 @anecdote_router.message(F.text, AnecdoteStates.waiting_for_text)
 async def process_anecdote(
@@ -56,56 +57,24 @@ async def process_anecdote(
 
         await message.answer(error_message, reply_markup=back_to_start_kb())
 
-async def send_next_anecdote(
-    session: AsyncSession,
-    state: FSMContext,
-    rated_anecdote_ids: list[int],
-    user_id: int,
-    message
-) -> bool:
-    anecdote = await AnecdoteDAO.find_one_random_not_in(
-        session, exclude_ids=rated_anecdote_ids, user_id=user_id
-    )
-
-    if anecdote:
-        await state.set_state(RateStates.waiting_for_rate)
-        await state.update_data(
-            anecdote_id=anecdote.id,
-            user_id=user_id,
-            rated_anecdote_ids=rated_anecdote_ids
-        )
-        await message.answer(
-            text=anecdote.content,
-            reply_markup=rate_anecdote_kb()
-        )
-        return True
-    else:
-        await state.clear()
-        await message.answer(text="Анекдотов больше нет!", reply_markup=back_to_start_kb())
-        return False
-
 
 @anecdote_router.callback_query(F.data == "rate_anecdote")
 async def rate_anecdote(
-    callback: CallbackQuery, state: FSMContext, session_with_commit: AsyncSession
+    callback: CallbackQuery, state: FSMContext, session_without_commit: AsyncSession
 ):
     user = await UserDAO.find_one_or_none(
-        session=session_with_commit,
+        session=session_without_commit,
         filters=TelegramIDModel(telegram_id=callback.from_user.id),
     )
 
     rated_anecdotes = await RateDAO.find_all(
-        session_with_commit, filters=RateModelUserId(user_id=user.id)
+        session_without_commit, filters=RateModelUserId(user_id=user.id)
     )
 
     rated_anecdote_ids = [rate.anecdote_id for rate in rated_anecdotes]
 
     await send_next_anecdote(
-        session_with_commit,
-        state,
-        rated_anecdote_ids,
-        user.id,
-        callback.message
+        session_without_commit, state, rated_anecdote_ids, user.id, callback.message
     )
 
 
@@ -120,7 +89,7 @@ async def process_rate(
     anecdote_id = data.get("anecdote_id")
     user_id = data.get("user_id")
     rated_anecdote_ids = data.get("rated_anecdote_ids", [])
-    
+
     rated_anecdote_ids.append(anecdote_id)
     await RateDAO.add(
         session_with_commit,
@@ -134,17 +103,10 @@ async def process_rate(
     )
 
     await send_next_anecdote(
-        session_with_commit,
-        state,
-        rated_anecdote_ids,
-        user_id,
-        callback.message
+        session_with_commit, state, rated_anecdote_ids, user_id, callback.message
     )
+
 
 @anecdote_router.callback_query(F.data == "stars_payment")
 async def stars_payment(callback: CallbackQuery, state: FSMContext):
-    await callback.message.edit_reply_markup(
-        reply_markup=back_to_start_kb()
-    )
-
-
+    await callback.message.edit_reply_markup(reply_markup=back_to_start_kb())

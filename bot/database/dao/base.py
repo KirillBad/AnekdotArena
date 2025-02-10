@@ -83,9 +83,7 @@ class BaseDAO:
     @classmethod
     async def count(cls, session: AsyncSession, filters: BaseModel | None = None):
         filter_dict = filters.model_dump(exclude_unset=True) if filters else {}
-        logger.info(
-            f"Подсчет записей {cls.model.__name__} по фильтрам: {filter_dict}"
-        )
+        logger.info(f"Подсчет записей {cls.model.__name__} по фильтрам: {filter_dict}")
         try:
             query = select(func.count()).select_from(cls.model).filter_by(**filter_dict)
             result = await session.execute(query)
@@ -93,7 +91,5 @@ class BaseDAO:
             logger.info(f"Найдено {count} записей.")
             return count
         except SQLAlchemyError as e:
-            logger.error(
-                f"Ошибка при подсчете записей по фильтрам {filter_dict}: {e}"
-            )
+            logger.error(f"Ошибка при подсчете записей по фильтрам {filter_dict}: {e}")
             raise
