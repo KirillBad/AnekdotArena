@@ -9,7 +9,7 @@ from anecdotes.dao import AnecdoteDAO, RateDAO
 from users.dao import UserDAO
 from users.schemas import TelegramIDModel
 from pydantic import ValidationError
-from anecdotes.states import AnecdoteStates
+from anecdotes.states import AnecdoteStates, RateStates
 from anecdotes.kbs import RateCallbackFactory, rated_anecdote_kb, back_to_start_kb
 from anecdotes.schemas import RateModel, RateModelUserId
 
@@ -78,13 +78,16 @@ async def rate_anecdote(
     )
 
 
-@anecdote_router.callback_query(RateCallbackFactory.filter(F.action == "rate"))
+@anecdote_router.callback_query(
+    RateCallbackFactory.filter(F.action == "rate"), RateStates.waiting_for_rate
+)
 async def process_rate(
     callback: CallbackQuery,
     callback_data: RateCallbackFactory,
     state: FSMContext,
     session_with_commit: AsyncSession,
 ):
+
     data = await state.get_data()
     anecdote_id = data.get("anecdote_id")
     user_id = data.get("user_id")
@@ -105,8 +108,3 @@ async def process_rate(
     await send_next_anecdote(
         session_with_commit, state, rated_anecdote_ids, user_id, callback.message
     )
-
-
-@anecdote_router.callback_query(F.data == "stars_payment")
-async def stars_payment(callback: CallbackQuery, state: FSMContext):
-    await callback.message.edit_reply_markup(reply_markup=back_to_start_kb())

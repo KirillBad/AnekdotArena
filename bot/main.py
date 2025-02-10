@@ -6,6 +6,7 @@ from aiogram.filters.command import Command
 from config_reader import bot, dp
 from users.router import user_router
 from anecdotes.router import anecdote_router
+from payments.router import payments_router
 from database.models import *
 from database.dao.databae_middleware import (
     DatabaseMiddlewareWithoutCommit,
@@ -26,6 +27,7 @@ async def main():
 
     dp.include_router(user_router)
     dp.include_router(anecdote_router)
+    dp.include_router(payments_router)
 
     await dp.start_polling(bot)
 
