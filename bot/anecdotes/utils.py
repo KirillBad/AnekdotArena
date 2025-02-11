@@ -22,6 +22,7 @@ async def send_next_anecdote(
         await state.update_data(
             anecdote_id=anecdote.id,
             user_id=user_id,
+            user_tg_id=message.from_user.id,
             rated_anecdote_ids=rated_anecdote_ids,
         )
         await message.answer(text=anecdote.content, reply_markup=rate_anecdote_kb())
