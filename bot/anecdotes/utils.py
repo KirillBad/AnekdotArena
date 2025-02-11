@@ -31,5 +31,5 @@ async def send_next_anecdote(
     else:
         await state.clear()
         await message.answer(
-            text="Анекдотов больше нет!", reply_markup=back_to_start_kb()
+            text="Вы оценили все анекдоты😔\n\nВозвращайтесь позже ☺️", reply_markup=back_to_start_kb()
         )

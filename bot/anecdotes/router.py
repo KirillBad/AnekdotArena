@@ -19,7 +19,7 @@ anecdote_router = Router()
 @anecdote_router.callback_query(F.data == "write_anecdote")
 async def start_write_anecdote(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
-        text="Напишите анекдот\n\nДлина от 5 до 1000 символов",
+        text="✍️ Напишите анекдот\n\n✏️ Отправьте его в чат",
         reply_markup=back_to_start_kb(),
     )
     await state.set_state(AnecdoteStates.waiting_for_text)
