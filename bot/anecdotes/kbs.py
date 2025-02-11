@@ -9,6 +9,11 @@ class RateCallbackFactory(CallbackData, prefix="rate"):
     value: Optional[int] = None
 
 
+class TopAnecdotesCallbackFactory(CallbackData, prefix="top"):
+    action: str
+    page: int
+
+
 def back_to_start_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text=" Назад", callback_data="start")
@@ -36,9 +41,27 @@ def rated_anecdote_kb(value: int) -> InlineKeyboardMarkup:
     kb.adjust(1)
     return kb.as_markup()
 
-
-def stars_payment_kb() -> InlineKeyboardMarkup:
+def top_anecdotes_kb(current_page: int, total_pages: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
+    button_counter = 1
+    if current_page > 1:
+        kb.button(
+            text="⬅️", 
+            callback_data=TopAnecdotesCallbackFactory(action="select_page", page=current_page-1)
+        )
+        button_counter += 1
+
+    page_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}.get(current_page, "📄")
+    kb.button(text=f"{page_emoji} {current_page}/{total_pages}", callback_data="current_page")
+    
+    if current_page < total_pages:
+        kb.button(
+            text="➡️", 
+            callback_data=TopAnecdotesCallbackFactory(action="select_page", page=current_page+1)
+        )
+        button_counter += 1
+
+    kb.button(text="Отправить подарок автору 🎁", callback_data="select_gift")
     kb.button(text="Назад", callback_data="start")
-    kb.adjust(1)
+    kb.adjust(button_counter, 1, 1)
     return kb.as_markup()

@@ -8,3 +8,4 @@ class AnecdoteStates(StatesGroup):
 class RateStates(StatesGroup):
     waiting_for_rate = State()
     selecting_gift = State()
+    watching_top_anecdotes = State()

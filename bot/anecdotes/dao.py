@@ -1,7 +1,7 @@
 from database.dao.base import BaseDAO
 from anecdotes.model import Anecdote, Rate
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import func, select
+from sqlalchemy.sql import func, select, desc
 from sqlalchemy.exc import SQLAlchemyError
 from loguru import logger
 
@@ -38,3 +38,29 @@ class AnecdoteDAO(BaseDAO):
 
 class RateDAO(BaseDAO):
     model = Rate
+
+    @classmethod
+    async def get_top_anecdotes(cls, session: AsyncSession):
+        logger.info(f"Получение топ анекдотов")
+        try:
+            query = (
+                select(
+                    cls.model.anecdote_id,
+                    Anecdote.content,
+                    Anecdote.user_id,
+                    func.avg(cls.model.rating).label('avg_rating'),
+                )
+                .join(Anecdote, cls.model.anecdote_id == Anecdote.id)
+                .group_by(cls.model.anecdote_id, Anecdote.content, Anecdote.user_id)
+                .order_by(desc('avg_rating')).limit(10)
+            )
+            
+            result = await session.execute(query)
+            records = result.all()
+            
+            logger.info(f"Найдено {len(records)} анекдотов для топа")
+            return records
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Ошибка при получении топ анекдотов: {e}")
+            raise

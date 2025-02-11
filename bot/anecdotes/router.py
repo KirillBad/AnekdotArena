@@ -10,7 +10,7 @@ from users.dao import UserDAO
 from users.schemas import TelegramIDModel
 from pydantic import ValidationError
 from anecdotes.states import AnecdoteStates, RateStates
-from anecdotes.kbs import RateCallbackFactory, rated_anecdote_kb, back_to_start_kb
+from anecdotes.kbs import RateCallbackFactory, rated_anecdote_kb, back_to_start_kb, top_anecdotes_kb, TopAnecdotesCallbackFactory
 from anecdotes.schemas import RateModel, RateModelUserId
 
 anecdote_router = Router()
@@ -107,4 +107,24 @@ async def process_rate(
 
     await send_next_anecdote(
         session_with_commit, state, rated_anecdote_ids, user_id, callback.message
+    )
+
+@anecdote_router.callback_query(F.data == "top_anecdotes")
+async def top_anecdotes(callback: CallbackQuery, state: FSMContext, session_without_commit: AsyncSession):
+    await state.set_state(RateStates.watching_top_anecdotes)
+    top_rates = await RateDAO.get_top_anecdotes(session_without_commit)
+    await state.update_data(top_rates=top_rates, anecdote_author_id=top_rates[0].user_id, page=1)
+    await callback.message.edit_text(
+        text=f"{top_rates[0].content}",
+        reply_markup=top_anecdotes_kb(1, 10),
+    )
+
+@anecdote_router.callback_query(TopAnecdotesCallbackFactory.filter(F.action == "select_page"))
+async def process_next_top_anecdotes(callback: CallbackQuery, callback_data: TopAnecdotesCallbackFactory, state: FSMContext):
+    data = await state.get_data()
+    top_rates = data.get("top_rates")
+    await state.update_data(anecdote_author_id=top_rates[callback_data.page - 1].user_id, page=callback_data.page)
+    await callback.message.edit_text(
+        text=f"{top_rates[callback_data.page - 1].content}",
+        reply_markup=top_anecdotes_kb(callback_data.page, 10),
     )

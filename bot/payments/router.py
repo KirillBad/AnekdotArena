@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from anecdotes.states import RateStates
 from payments.kbs import send_gift_kb
 from sqlalchemy.ext.asyncio import AsyncSession
-from anecdotes.kbs import rate_anecdote_kb
+from anecdotes.kbs import rate_anecdote_kb, top_anecdotes_kb
 from payments.kbs import SendGiftCallbackFactory
 from aiogram.methods import SendGift
 from users.dao import UserDAO
@@ -16,6 +16,8 @@ payments_router = Router()
 
 @payments_router.callback_query(F.data == "select_gift")
 async def start_send_gift(callback: CallbackQuery, state: FSMContext):
+    current_state = await state.get_state()
+    await state.update_data(previous_state=current_state)
     await state.set_state(RateStates.selecting_gift)
     await callback.message.edit_reply_markup(
         reply_markup=send_gift_kb(),
@@ -39,10 +41,18 @@ async def process_send_gift(
 
 @payments_router.callback_query(F.data == "back", RateStates.selecting_gift)
 async def handle_back(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(RateStates.waiting_for_rate)
-    await callback.message.edit_reply_markup(
-        reply_markup=rate_anecdote_kb(),
-    )
+    data = await state.get_data()
+    previous_state = data.get("previous_state")
+    if previous_state == RateStates.watching_top_anecdotes:
+        await state.set_state(RateStates.watching_top_anecdotes)
+        await callback.message.edit_reply_markup(
+            reply_markup=top_anecdotes_kb(data.get("page"), 10),
+        )
+    else:
+        await state.set_state(RateStates.waiting_for_rate)
+        await callback.message.edit_reply_markup(
+            reply_markup=rate_anecdote_kb(),
+        )
 
 @payments_router.pre_checkout_query(RateStates.selecting_gift)
 async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery, state: FSMContext):  
@@ -53,7 +63,7 @@ async def on_successful_payment(
     message: Message, state: FSMContext,  session_without_commit: AsyncSession
 ):
     data = await state.get_data()
-    user = await UserDAO.find_one_or_none(session=session_without_commit, filters=UserIDModel(id=data.get("user_id")))
+    user = await UserDAO.find_one_or_none(session=session_without_commit, filters=UserIDModel(id=data.get("anecdote_author_id")))
     await bot(SendGift(
         user_id=user.telegram_id,
         gift_id=data.get("gift_id"),
