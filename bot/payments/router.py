@@ -3,9 +3,12 @@ from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
 from aiogram.fsm.context import FSMContext
 from anecdotes.states import RateStates
 from payments.kbs import send_gift_kb
+from sqlalchemy.ext.asyncio import AsyncSession
 from anecdotes.kbs import rate_anecdote_kb
 from payments.kbs import SendGiftCallbackFactory
 from aiogram.methods import SendGift
+from users.dao import UserDAO
+from users.schemas import UserIDModel
 from config_reader import bot
 
 payments_router = Router()
@@ -47,10 +50,13 @@ async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery, state: FSMC
 
 @payments_router.message(F.successful_payment, RateStates.selecting_gift)
 async def on_successful_payment(
-    message: Message, state: FSMContext
+    message: Message, state: FSMContext,  session_without_commit: AsyncSession
 ):
     data = await state.get_data()
+    user = await UserDAO.find_one_or_none(session=session_without_commit, filters=UserIDModel(id=data.get("user_id")))
     await bot(SendGift(
-        user_id=data.get("user_tg_id"),
+        user_id=user.telegram_id,
         gift_id=data.get("gift_id"),
     ))
+    await state.set_state(RateStates.waiting_for_rate)
+    await message.answer(text=data.get("anecdote_content"), reply_markup=rate_anecdote_kb())

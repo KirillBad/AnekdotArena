@@ -18,11 +18,12 @@ async def send_next_anecdote(
     )
 
     if anecdote:
+        print(anecdote.user_id)
         await state.set_state(RateStates.waiting_for_rate)
         await state.update_data(
             anecdote_id=anecdote.id,
-            user_id=user_id,
-            user_tg_id=message.from_user.id,
+            anecdote_content=anecdote.content,
+            user_id=anecdote.user_id,
             rated_anecdote_ids=rated_anecdote_ids,
         )
         await message.answer(text=anecdote.content, reply_markup=rate_anecdote_kb())
