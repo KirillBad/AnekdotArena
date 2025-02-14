@@ -28,3 +28,9 @@ def deleted_anecdote_kb() -> InlineKeyboardMarkup:
     kb.button(text="🚫 Анекдот удален", callback_data="pass")
     kb.adjust(1)
     return kb.as_markup()
+
+def canceled_reports_kb() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Жалобы аннулированы", callback_data="pass")
+    kb.adjust(1)
+    return kb.as_markup()

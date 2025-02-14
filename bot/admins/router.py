@@ -1,11 +1,12 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.fsm.context import FSMContext
-from admins.kbs import admin_panel_kb, report_actions_kb, back_to_admin_panel_kb, deleted_anecdote_kb
+from admins.kbs import admin_panel_kb, back_to_admin_panel_kb, deleted_anecdote_kb, canceled_reports_kb
 from admins.states import AdminStates
 from anecdotes.dao import AnecdoteDAO
-from anecdotes.schemas import AnecdoteFilter
+from anecdotes.schemas import AnecdoteFilter, AnecdoteUpdate
+from admins.utils import show_report
 
 admin_router = Router()
 
@@ -36,7 +37,6 @@ async def delete_anecdote(callback: CallbackQuery, state: FSMContext, session_wi
     data = await state.get_data()
     anecdote_ids = data.get("anecdote_ids", [])
     current_index = data.get("current_index", 0)
-    print(anecdote_ids[current_index])
 
     await AnecdoteDAO.delete(session_with_commit, AnecdoteFilter(id=anecdote_ids[current_index]))
     await callback.message.edit_reply_markup(reply_markup=deleted_anecdote_kb())
@@ -47,26 +47,17 @@ async def delete_anecdote(callback: CallbackQuery, state: FSMContext, session_wi
 
     await show_report(callback.message, state, session_with_commit)
 
-async def show_report(message: Message, state: FSMContext, session: AsyncSession):
+@admin_router.callback_query(F.data == "cancel_reports")
+async def cancel_reports(callback: CallbackQuery, state: FSMContext, session_with_commit: AsyncSession):
     data = await state.get_data()
     anecdote_ids = data.get("anecdote_ids", [])
     current_index = data.get("current_index", 0)
 
-    if not anecdote_ids or current_index >= len(anecdote_ids):
-        await message.edit_text("Все анекдоты просмотрены", reply_markup=back_to_admin_panel_kb())
-        return
+    await AnecdoteDAO.update(session_with_commit, AnecdoteUpdate(report_count=0), AnecdoteFilter(id=anecdote_ids[current_index]))
+    await callback.message.edit_reply_markup(reply_markup=canceled_reports_kb())
 
-    anecdote = await AnecdoteDAO.find_one_or_none_by_id(anecdote_ids[current_index], session)
-    if not anecdote:
-        return
-
-    text = (
-        f"{anecdote.content}\n\n"
-        f"id анекдота #{anecdote.id}\n"
-        f"Количество репортов: {anecdote.report_count}"
+    await state.update_data(
+        current_index=current_index + 1
     )
 
-    await message.answer(
-        text=text,
-        reply_markup=report_actions_kb()
-    )
+    await show_report(callback.message, state, session_with_commit)

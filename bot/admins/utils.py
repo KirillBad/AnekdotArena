@@ -1,36 +1,31 @@
-from aiogram.types import Message, CallbackQuery
-from aiogram.fsm.context import FSMContext
-from sqlalchemy.ext.asyncio import AsyncSession
+from aiogram.types import Message
+from admins.kbs import back_to_admin_panel_kb, report_actions_kb
 from anecdotes.dao import AnecdoteDAO
-from anecdotes.states import RateStates
-from anecdotes.kbs import rate_anecdote_kb, back_to_start_kb
-from users.kbs import main_user_kb
+from sqlalchemy.ext.asyncio import AsyncSession
+from aiogram.fsm.context import FSMContext
 
 
-async def send_next_report(
-    session: AsyncSession,
-    state: FSMContext,
-    reports_ids: list[int],
-    user_id: int,
-    message,
-) -> bool:
-    report = await AnecdoteDAO.find_one_random_not_in(
-        session, exclude_ids=reports_ids, user_id=user_id
+async def show_report(message: Message, state: FSMContext, session: AsyncSession):
+    data = await state.get_data()
+    anecdote_ids = data.get("anecdote_ids", [])
+    current_index = data.get("current_index", 0)
+
+    if not anecdote_ids or current_index >= len(anecdote_ids):
+        await message.answer("Все анекдоты просмотрены", reply_markup=back_to_admin_panel_kb())
+        return
+
+    anecdote = await AnecdoteDAO.find_one_or_none_by_id(anecdote_ids[current_index], session)
+    if not anecdote:
+        return
+
+    text = (
+        f"{anecdote.content}\n\n"
+        f"id анекдота #{anecdote.id}\n"
+        f"Количество репортов: {anecdote.report_count}"
     )
 
-    if anecdote:
-        await state.set_state(RateStates.waiting_for_rate)
-        await state.update_data(
-            anecdote_id=anecdote.id,
-            anecdote_content=anecdote.content,
-            anecdote_author_id=anecdote.user_id,
-            anecdote_report_count=anecdote.report_count,
-            user_id=user_id,
-            rated_anecdote_ids=rated_anecdote_ids,
-        )
-        await message.answer(text=anecdote.content, reply_markup=rate_anecdote_kb())
-    else:
-        await state.clear()
-        await message.answer(
-            text="Вы оценили все анекдоты😔\n\nВозвращайтесь позже ☺️", reply_markup=back_to_start_kb()
-        )
+    await message.answer(
+        text=text,
+        reply_markup=report_actions_kb()
+    )
+    
