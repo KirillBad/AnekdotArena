@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from anecdotes.states import RateStates
 from payments.kbs import send_gift_kb
 from sqlalchemy.ext.asyncio import AsyncSession
-from anecdotes.kbs import rate_anecdote_kb, top_anecdotes_kb
+from anecdotes.kbs import rate_anecdote_kb, pagination_anecdotes_kb
 from payments.kbs import SendGiftCallbackFactory
 from aiogram.methods import SendGift
 from users.dao import UserDAO
@@ -46,7 +46,7 @@ async def handle_back(callback: CallbackQuery, state: FSMContext):
     if previous_state == RateStates.watching_top_anecdotes:
         await state.set_state(RateStates.watching_top_anecdotes)
         await callback.message.edit_reply_markup(
-            reply_markup=top_anecdotes_kb(data.get("page"), 10),
+            reply_markup=pagination_anecdotes_kb(data.get("page"), 10, "top_anecdotes"),
         )
     else:
         await state.set_state(RateStates.waiting_for_rate)

@@ -11,7 +11,7 @@ from users.utils import get_start_text
 from users.schemas import TelegramIDModel
 from pydantic import ValidationError, AnyUrl, HttpUrl 
 from anecdotes.states import AnecdoteStates, RateStates
-from anecdotes.kbs import RateCallbackFactory, rated_anecdote_kb, back_to_start_kb, top_anecdotes_kb, TopAnecdotesCallbackFactory, reported_anecdote_kb
+from anecdotes.kbs import RateCallbackFactory, rated_anecdote_kb, back_to_start_kb, pagination_anecdotes_kb, PaginationCallbackFactory, reported_anecdote_kb
 from anecdotes.schemas import RateModel, RateModelUserId, AnecdoteFilter, AnecdoteUpdate
 
 anecdote_router = Router()
@@ -122,18 +122,18 @@ async def top_anecdotes(callback: CallbackQuery, state: FSMContext, session_with
     rating = f"{top_rates[0].avg_rating:.2f}".rstrip("0").rstrip(".")
     await callback.message.edit_text(
         text=f"{top_rates[0].content}\n\n📈 Рейтинг: {rating}",
-        reply_markup=top_anecdotes_kb(1, 10),
+        reply_markup=pagination_anecdotes_kb(1, 10, "top_anecdotes"),
     )
 
-@anecdote_router.callback_query(TopAnecdotesCallbackFactory.filter(F.action == "select_page"))
-async def process_next_top_anecdotes(callback: CallbackQuery, callback_data: TopAnecdotesCallbackFactory, state: FSMContext):
+@anecdote_router.callback_query(PaginationCallbackFactory.filter(F.action == "select_page"), RateStates.watching_top_anecdotes)
+async def process_next_top_anecdotes(callback: CallbackQuery, callback_data: PaginationCallbackFactory, state: FSMContext):
     data = await state.get_data()
     top_rates = data.get("top_rates")
     rating = f"{top_rates[callback_data.page - 1].avg_rating:.2f}".rstrip("0").rstrip(".")
     await state.update_data(anecdote_author_id=top_rates[callback_data.page - 1].user_id, page=callback_data.page)
     await callback.message.edit_text(
         text=f"{top_rates[callback_data.page - 1].content}\n\n📈 Рейтинг: {rating}",
-        reply_markup=top_anecdotes_kb(callback_data.page, 10),
+        reply_markup=pagination_anecdotes_kb(callback_data.page, 10, "top_anecdotes"),
     )
 
 @anecdote_router.callback_query(F.data == "report_anecdote", RateStates.waiting_for_rate)

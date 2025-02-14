@@ -1,6 +1,11 @@
 from pydantic import BaseModel, Field, field_validator, AnyUrl, ValidationError
 import re
 
+
+class AnecdoteUserIdFilter(BaseModel):
+    user_id: int
+
+
 class AnecdoteFilter(BaseModel):
     id: int
 

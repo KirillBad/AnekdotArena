@@ -9,7 +9,7 @@ class RateCallbackFactory(CallbackData, prefix="rate"):
     value: Optional[int] = None
 
 
-class TopAnecdotesCallbackFactory(CallbackData, prefix="top"):
+class PaginationCallbackFactory(CallbackData, prefix="pagination"):
     action: str
     page: int
 
@@ -48,13 +48,13 @@ def reported_anecdote_kb() -> InlineKeyboardMarkup:
     kb.adjust(1)
     return kb.as_markup()
 
-def top_anecdotes_kb(current_page: int, total_pages: int) -> InlineKeyboardMarkup:
+def pagination_anecdotes_kb(current_page: int, total_pages: int, source: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     button_counter = 1
     if current_page > 1:
         kb.button(
             text="⬅️", 
-            callback_data=TopAnecdotesCallbackFactory(action="select_page", page=current_page-1)
+            callback_data=PaginationCallbackFactory(action="select_page", page=current_page-1)
         )
         button_counter += 1
 
@@ -64,11 +64,16 @@ def top_anecdotes_kb(current_page: int, total_pages: int) -> InlineKeyboardMarku
     if current_page < total_pages:
         kb.button(
             text="➡️", 
-            callback_data=TopAnecdotesCallbackFactory(action="select_page", page=current_page+1)
+            callback_data=PaginationCallbackFactory(action="select_page", page=current_page+1)
         )
         button_counter += 1
 
-    kb.button(text="Отправить подарок автору 🎁", callback_data="select_gift")
-    kb.button(text="↩️Назад", callback_data="start")
-    kb.adjust(button_counter, 1, 1)
+    if source == "top_anecdotes":
+        kb.button(text="Отправить подарок автору 🎁", callback_data="select_gift")
+        kb.button(text="↩️Назад", callback_data="start")
+        kb.adjust(button_counter, 1, 1)
+    elif source == "my_anecdotes":
+        kb.button(text="↩️Назад", callback_data="start")
+        kb.adjust(button_counter, 1)
+        
     return kb.as_markup()

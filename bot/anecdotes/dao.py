@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func, select, desc
 from sqlalchemy.exc import SQLAlchemyError
 from loguru import logger
+from pydantic import BaseModel
 
 
 class AnecdoteDAO(BaseDAO):
@@ -33,6 +34,34 @@ class AnecdoteDAO(BaseDAO):
             return record
         except SQLAlchemyError as e:
             logger.error(f"Ошибка при поиске случайной записи: {e}")
+            raise
+
+    @classmethod
+    async def get_anecdotes_with_rating(cls, session: AsyncSession, filters: BaseModel):
+        filter_dict = filters.model_dump(exclude_unset=True)
+        logger.info(f"Получение анекдотов с рейтингом по фильтрам {filter_dict}")
+        try:
+            query = (
+                select(
+                    cls.model.id,
+                    cls.model.content,
+                    func.coalesce(func.avg(Rate.rating), 0).label('avg_rating')
+                )
+                .filter_by(**filter_dict)
+                .outerjoin(Rate, cls.model.id == Rate.anecdote_id) 
+                .group_by(cls.model.id, cls.model.content)
+                .order_by(desc('avg_rating'))
+            )
+
+            result = await session.execute(query)
+            records = result.all()
+            
+            logger.info(f"Найдено {len(records)} анекдотов для топа")
+
+            return records
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Ошибка при получении анекдотов с рейтингом: {e}")
             raise
 
 
