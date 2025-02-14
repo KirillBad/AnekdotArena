@@ -3,6 +3,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 from users.utils import get_start_text
+from aiogram.fsm.context import FSMContext
 
 user_router = Router()
 
@@ -14,6 +15,7 @@ async def cmd_start(message: Message, session_with_commit: AsyncSession):
 
 
 @user_router.callback_query(F.data == "start")
-async def back_to_start(call: CallbackQuery, session_without_commit: AsyncSession):
-    text, kb = await get_start_text(call, session_without_commit)
-    await call.message.edit_text(text, reply_markup=kb)
+async def back_to_start(callback: CallbackQuery, state: FSMContext, session_without_commit: AsyncSession):
+    await state.clear()
+    text, kb = await get_start_text(callback, session_without_commit)
+    await callback.message.edit_text(text, reply_markup=kb)

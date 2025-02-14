@@ -3,7 +3,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 from sqlalchemy.future import select
-from sqlalchemy import func
+from sqlalchemy import func, delete, update, desc
 from pydantic import BaseModel
 
 
@@ -46,13 +46,17 @@ class BaseDAO:
             raise
 
     @classmethod
-    async def find_all(cls, session: AsyncSession, filters: BaseModel | None = None):
+    async def find_all(cls, session: AsyncSession, filters: BaseModel | None = None, order_by: str | None = None):
         filter_dict = filters.model_dump(exclude_unset=True) if filters else {}
         logger.info(
             f"Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict}"
         )
         try:
             query = select(cls.model).filter_by(**filter_dict)
+            if order_by:
+                column = getattr(cls.model, order_by)
+                query = query.where(column > 0)
+                query = query.order_by(desc(column))
             result = await session.execute(query)
             records = result.scalars().all()
             logger.info(f"Найдено {len(records)} записей.")
@@ -92,4 +96,53 @@ class BaseDAO:
             return count
         except SQLAlchemyError as e:
             logger.error(f"Ошибка при подсчете записей по фильтрам {filter_dict}: {e}")
+            raise
+
+    @classmethod
+    async def delete(cls, session: AsyncSession, filters: BaseModel):
+        filter_dict = filters.model_dump(exclude_unset=True)
+        logger.info(f"Удаление записей {cls.model.__name__} по фильтру: {filter_dict}")
+        if not filter_dict:
+            logger.error("Нужен хотя бы один фильтр для удаления.")
+            raise ValueError("Нужен хотя бы один фильтр для удаления.")
+
+        try:
+            stmt = select(cls.model).filter_by(**filter_dict)
+            result = await session.execute(stmt)
+            obj = result.scalar_one_or_none()
+            
+            if obj:
+                await session.delete(obj)
+                await session.flush()
+                logger.info(f"Запись успешно удалена")
+                return 1
+            else:
+                logger.warning(f"Запись для удаления не найдена")
+                return 0
+                
+        except SQLAlchemyError as e:
+            await session.rollback()
+            logger.error(f"Ошибка при удалении записей: {e}")
+            raise e
+        
+    @classmethod
+    async def update(cls, session: AsyncSession, values: BaseModel, filters: BaseModel):
+        values_dict = values.model_dump(exclude_unset=True)
+        filter_dict = filters.model_dump(exclude_unset=True)
+
+        logger.info(f"Обновление записи {cls.model.__name__} с параметрами: {values_dict}")
+        
+        try:
+            query = (
+                update(cls.model)
+                .filter_by(**filter_dict)
+                .values(**values_dict)
+            )
+            await session.execute(query)
+            await session.flush()
+            
+            logger.info(f"Запись {cls.model.__name__} успешно обновлена")
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Ошибка при обновлении записи: {e}")
             raise

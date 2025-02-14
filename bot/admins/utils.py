@@ -7,15 +7,15 @@ from anecdotes.kbs import rate_anecdote_kb, back_to_start_kb
 from users.kbs import main_user_kb
 
 
-async def send_next_anecdote(
+async def send_next_report(
     session: AsyncSession,
     state: FSMContext,
-    rated_anecdote_ids: list[int],
+    reports_ids: list[int],
     user_id: int,
     message,
 ) -> bool:
-    anecdote = await AnecdoteDAO.find_one_random_not_in(
-        session, exclude_ids=rated_anecdote_ids, user_id=user_id
+    report = await AnecdoteDAO.find_one_random_not_in(
+        session, exclude_ids=reports_ids, user_id=user_id
     )
 
     if anecdote:

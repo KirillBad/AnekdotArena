@@ -1,18 +1,12 @@
 from sqlalchemy import ForeignKey
-from sqlalchemy.orm import (
-    Mapped,
-    mapped_column,
-    relationship,
-    DeclarativeBase,
-    declared_attr,
-)
-from sqlalchemy.ext.asyncio import AsyncAttrs
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.database import Base
 
 
 class Anecdote(Base):
     content: Mapped[str]
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    report_count: Mapped[int] = mapped_column(default=0)
 
     user: Mapped["User"] = relationship(
         "User", back_populates="anecdotes", lazy="selectin"
@@ -30,7 +24,7 @@ class Rate(Base):
         ForeignKey("anecdotes.id"), primary_key=True
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    rating: Mapped[int]
+    rating: Mapped[int | None]
 
     anecdote: Mapped["Anecdote"] = relationship("Anecdote", back_populates="rates")
 

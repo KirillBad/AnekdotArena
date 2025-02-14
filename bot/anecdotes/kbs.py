@@ -30,7 +30,8 @@ def rate_anecdote_kb() -> InlineKeyboardMarkup:
     kb.button(text="5️⃣", callback_data=RateCallbackFactory(action="rate", value=5)),
     kb.button(text="Отправить подарок автору 🎁", callback_data="select_gift")
     kb.button(text="↩️ Назад", callback_data="start")
-    kb.adjust(5, 1, 1)
+    kb.button(text="🚨 Пожаловаться", callback_data="report_anecdote")
+    kb.adjust(5, 1, 2)
     return kb.as_markup()
 
 
@@ -38,6 +39,12 @@ def rated_anecdote_kb(value: int) -> InlineKeyboardMarkup:
     number_emojis = {1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣"}
     kb = InlineKeyboardBuilder()
     kb.button(text=f" Ваша оценка: {number_emojis[value]}", callback_data="pass")
+    kb.adjust(1)
+    return kb.as_markup()
+
+def reported_anecdote_kb() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🚨 Жалоба отправлена", callback_data="pass")
     kb.adjust(1)
     return kb.as_markup()
 

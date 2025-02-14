@@ -7,11 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from anecdotes.schemas import AnecdoteModel
 from anecdotes.dao import AnecdoteDAO, RateDAO
 from users.dao import UserDAO
+from users.utils import get_start_text
 from users.schemas import TelegramIDModel
-from pydantic import ValidationError
+from pydantic import ValidationError, AnyUrl, HttpUrl 
 from anecdotes.states import AnecdoteStates, RateStates
-from anecdotes.kbs import RateCallbackFactory, rated_anecdote_kb, back_to_start_kb, top_anecdotes_kb, TopAnecdotesCallbackFactory
-from anecdotes.schemas import RateModel, RateModelUserId
+from anecdotes.kbs import RateCallbackFactory, rated_anecdote_kb, back_to_start_kb, top_anecdotes_kb, TopAnecdotesCallbackFactory, reported_anecdote_kb
+from anecdotes.schemas import RateModel, RateModelUserId, AnecdoteFilter, AnecdoteUpdate
 
 anecdote_router = Router()
 
@@ -27,9 +28,10 @@ async def start_write_anecdote(callback: CallbackQuery, state: FSMContext):
 
 @anecdote_router.message(F.text, AnecdoteStates.waiting_for_text)
 async def process_anecdote(
-    message: Message, state: FSMContext, session_with_commit: AsyncSession
+    message: Message, state: FSMContext, session_with_commit: AsyncSession, session_without_commit: AsyncSession
 ):
     text = message.text
+    error_message = "❌ Ошибка\n\n"
 
     user = await UserDAO.find_one_or_none(
         session=session_with_commit,
@@ -40,28 +42,30 @@ async def process_anecdote(
         values = AnecdoteModel(content=text, user_id=user.id)
         await AnecdoteDAO.add(session=session_with_commit, values=values)
         await state.clear()
-
+        text, kb = await get_start_text(message, session_without_commit)
         await message.answer(
-            "✅ Ваш анекдот успешно сохранен!", reply_markup=main_user_kb(user.id)
+            "✅ Ваш анекдот успешно сохранен!"
         )
+        await message.answer(text, reply_markup=kb)
     except ValidationError as e:
-        error_message = "❌ Ошибка:\n"
-        if "string_too_short" in str(e):
+        error_str = str(e)
+        if "Ссылки в анекдотах запрещены" in error_str:
+            error_message += "Ссылки в анекдотах запрещены"
+        elif "string_too_short" in error_str:
             error_message += "Текст анекдота должен содержать минимум 5 символов!"
-        elif "string_too_long" in str(e):
-            error_message += "Текст анекдота не должен превышать 1000 символов!"
+        elif "string_too_long" in error_str:
+            error_message += "Текст анекдота не должен превышать 3900 символов!"
         else:
-            error_message += "Неверный формат данных!"
-
-        error_message += "\n\nПопробуйте еще раз"
-
-        await message.answer(error_message, reply_markup=back_to_start_kb())
+            error_message += f"{error_str}"
+        await message.answer(error_message + "\n\n🔁 Отправьте исправленный текст", reply_markup=back_to_start_kb())
 
 
 @anecdote_router.callback_query(F.data == "rate_anecdote")
 async def rate_anecdote(
     callback: CallbackQuery, state: FSMContext, session_without_commit: AsyncSession
 ):
+    await callback.answer()
+
     user = await UserDAO.find_one_or_none(
         session=session_without_commit,
         filters=TelegramIDModel(telegram_id=callback.from_user.id),
@@ -86,6 +90,7 @@ async def process_rate(
     callback_data: RateCallbackFactory,
     state: FSMContext,
     session_with_commit: AsyncSession,
+    session_without_commit: AsyncSession,
 ):
 
     data = await state.get_data()
@@ -106,7 +111,7 @@ async def process_rate(
     )
 
     await send_next_anecdote(
-        session_with_commit, state, rated_anecdote_ids, user_id, callback.message
+        session_without_commit, state, rated_anecdote_ids, user_id, callback.message
     )
 
 @anecdote_router.callback_query(F.data == "top_anecdotes")
@@ -114,8 +119,9 @@ async def top_anecdotes(callback: CallbackQuery, state: FSMContext, session_with
     await state.set_state(RateStates.watching_top_anecdotes)
     top_rates = await RateDAO.get_top_anecdotes(session_without_commit)
     await state.update_data(top_rates=top_rates, anecdote_author_id=top_rates[0].user_id, page=1)
+    rating = f"{top_rates[0].avg_rating:.2f}".rstrip("0").rstrip(".")
     await callback.message.edit_text(
-        text=f"{top_rates[0].content}",
+        text=f"{top_rates[0].content}\n\n📈 Рейтинг: {rating}",
         reply_markup=top_anecdotes_kb(1, 10),
     )
 
@@ -123,8 +129,37 @@ async def top_anecdotes(callback: CallbackQuery, state: FSMContext, session_with
 async def process_next_top_anecdotes(callback: CallbackQuery, callback_data: TopAnecdotesCallbackFactory, state: FSMContext):
     data = await state.get_data()
     top_rates = data.get("top_rates")
+    rating = f"{top_rates[callback_data.page - 1].avg_rating:.2f}".rstrip("0").rstrip(".")
     await state.update_data(anecdote_author_id=top_rates[callback_data.page - 1].user_id, page=callback_data.page)
     await callback.message.edit_text(
-        text=f"{top_rates[callback_data.page - 1].content}",
+        text=f"{top_rates[callback_data.page - 1].content}\n\n📈 Рейтинг: {rating}",
         reply_markup=top_anecdotes_kb(callback_data.page, 10),
     )
+
+@anecdote_router.callback_query(F.data == "report_anecdote", RateStates.waiting_for_rate)
+async def report_anecdote(callback: CallbackQuery, state: FSMContext, session_with_commit: AsyncSession, session_without_commit: AsyncSession):
+    data = await state.get_data()
+    anecdote_id = data.get("anecdote_id")
+    user_id = data.get("user_id")
+    anecdote_report_count = data.get("anecdote_report_count") + 1
+    rated_anecdote_ids = data.get("rated_anecdote_ids", [])
+
+    rated_anecdote_ids.append(anecdote_id)
+    await RateDAO.add(
+        session_with_commit,
+        values=RateModel(
+            anecdote_id=anecdote_id, user_id=user_id, rating=None
+        ),
+    )
+
+    await AnecdoteDAO.update(session_with_commit, values=AnecdoteUpdate(report_count=anecdote_report_count), filters=AnecdoteFilter(id=anecdote_id))
+
+    await callback.message.edit_reply_markup(reply_markup=reported_anecdote_kb())
+
+    await send_next_anecdote(
+        session_without_commit, state, rated_anecdote_ids, user_id, callback.message
+    )
+
+@anecdote_router.callback_query(F.data == "pass")
+async def pass_callback(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
