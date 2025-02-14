@@ -3,10 +3,10 @@ from typing import List
 from loguru import logger
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from aiogram.fsm.storage.redis import RedisStorage
 
 
 class Settings(BaseSettings):
@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int
     POSTGRES_HOST: str
 
+    REDIS_HOST: str
+    REDIS_PORT: int
+
     ADMIN_IDS: List[int]
 
     FORMAT_LOG: str = "{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}"
@@ -26,6 +29,10 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+    
+    @property
+    def redis_url(self) -> str:
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
@@ -36,7 +43,7 @@ bot = Bot(
     token=config.BOT_TOKEN.get_secret_value(),
     default=DefaultBotProperties(parse_mode=ParseMode.HTML),
 )
-dp = Dispatcher(storage=MemoryStorage())
+dp = Dispatcher(storage=RedisStorage.from_url(config.redis_url))
 admins = config.ADMIN_IDS
 
 log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log.txt")

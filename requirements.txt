@@ -4,3 +4,4 @@ sqlalchemy[asyncio]==2.0.38
 asyncpg==0.30.0
 alembic==1.14.1
 loguru==0.7.3
+redis==5.2.1

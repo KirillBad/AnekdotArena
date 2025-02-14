@@ -39,16 +39,26 @@ async def my_anecdotes(callback: CallbackQuery, state: FSMContext, session_witho
     if not my_anecdotes:
         await callback.message.edit_text("У вас пока нет анекдотов", reply_markup=back_to_start_kb())
         return
+    
+    serializable_anecdotes = [
+        {
+            **record._asdict(),
+            'avg_rating': float(record.avg_rating)
+        } 
+        for record in my_anecdotes
+    ]
 
-    await state.update_data(my_anecdotes=my_anecdotes)
-    await callback.message.edit_text(f"{my_anecdotes[0].content}\n\n📈 Рейтинг: {my_anecdotes[0].avg_rating}", reply_markup=pagination_anecdotes_kb(1, len(my_anecdotes), "my_anecdotes"))
+    await state.update_data(my_anecdotes=serializable_anecdotes)
+    rating = f"{serializable_anecdotes[0]['avg_rating']:.2f}".rstrip("0").rstrip(".")
+    await callback.message.edit_text(f"{serializable_anecdotes[0]['content']}\n\n📈 Рейтинг: {rating}", reply_markup=pagination_anecdotes_kb(1, len(my_anecdotes), "my_anecdotes"))
 
 @user_router.callback_query(PaginationCallbackFactory.filter(F.action == "select_page"), UserStates.watching_my_anecdotes)
 async def process_next_my_anecdotes(callback: CallbackQuery, callback_data: PaginationCallbackFactory, state: FSMContext):
     data = await state.get_data()
     my_anecdotes = data.get("my_anecdotes")
     await state.update_data(page=callback_data.page)
+    rating = f"{my_anecdotes[callback_data.page - 1]['avg_rating']:.2f}".rstrip("0").rstrip(".")
     await callback.message.edit_text(
-        text=f"{my_anecdotes[callback_data.page - 1].content}\n\n📈 Рейтинг: {my_anecdotes[0].avg_rating}",
+        text=f"{my_anecdotes[callback_data.page - 1]['content']}\n\n📈 Рейтинг: {rating}",
         reply_markup=pagination_anecdotes_kb(callback_data.page, len(my_anecdotes), "my_anecdotes"),
     )

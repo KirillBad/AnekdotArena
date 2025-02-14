@@ -118,21 +118,37 @@ async def process_rate(
 async def top_anecdotes(callback: CallbackQuery, state: FSMContext, session_without_commit: AsyncSession):
     await state.set_state(RateStates.watching_top_anecdotes)
     top_rates = await RateDAO.get_top_anecdotes(session_without_commit)
-    await state.update_data(top_rates=top_rates, anecdote_author_id=top_rates[0].user_id, page=1)
-    rating = f"{top_rates[0].avg_rating:.2f}".rstrip("0").rstrip(".")
+    
+    serializable_top = [
+        {
+            "id": record.anecdote_id,
+            "content": record.content,
+            "user_id": record.user_id,
+            "avg_rating": float(record.avg_rating) if record.avg_rating else 0
+        }
+        for record in top_rates
+    ]
+    
+    await state.update_data(
+        top_rates=serializable_top, 
+        anecdote_author_id=serializable_top[0]["user_id"], 
+        page=1
+    )
+    
+    rating = f"{serializable_top[0]['avg_rating']:.2f}".rstrip("0").rstrip(".")
     await callback.message.edit_text(
-        text=f"{top_rates[0].content}\n\n📈 Рейтинг: {rating}",
-        reply_markup=pagination_anecdotes_kb(1, 10, "top_anecdotes"),
+        text=f"{serializable_top[0]['content']}\n\n📈 Рейтинг: {rating}",
+        reply_markup=pagination_anecdotes_kb(1, 10, "top_anecdotes")
     )
 
 @anecdote_router.callback_query(PaginationCallbackFactory.filter(F.action == "select_page"), RateStates.watching_top_anecdotes)
 async def process_next_top_anecdotes(callback: CallbackQuery, callback_data: PaginationCallbackFactory, state: FSMContext):
     data = await state.get_data()
     top_rates = data.get("top_rates")
-    rating = f"{top_rates[callback_data.page - 1].avg_rating:.2f}".rstrip("0").rstrip(".")
-    await state.update_data(anecdote_author_id=top_rates[callback_data.page - 1].user_id, page=callback_data.page)
+    rating = f"{top_rates[callback_data.page - 1]['avg_rating']:.2f}".rstrip("0").rstrip(".")
+    await state.update_data(anecdote_author_id=top_rates[callback_data.page - 1]['user_id'], page=callback_data.page)
     await callback.message.edit_text(
-        text=f"{top_rates[callback_data.page - 1].content}\n\n📈 Рейтинг: {rating}",
+        text=f"{top_rates[callback_data.page - 1]['content']}\n\n📈 Рейтинг: {rating}",
         reply_markup=pagination_anecdotes_kb(callback_data.page, 10, "top_anecdotes"),
     )
 

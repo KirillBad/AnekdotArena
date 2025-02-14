@@ -56,7 +56,7 @@ class AnecdoteDAO(BaseDAO):
             result = await session.execute(query)
             records = result.all()
             
-            logger.info(f"Найдено {len(records)} анекдотов для топа")
+            logger.info(f"Найдено {len(records)} анекдотов")
 
             return records
             
