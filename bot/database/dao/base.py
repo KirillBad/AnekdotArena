@@ -1,9 +1,8 @@
-from typing import List, Any, Dict
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 from sqlalchemy.future import select
-from sqlalchemy import func, delete, update, desc
+from sqlalchemy import func, update, desc
 from pydantic import BaseModel
 
 
@@ -46,7 +45,12 @@ class BaseDAO:
             raise
 
     @classmethod
-    async def find_all(cls, session: AsyncSession, filters: BaseModel | None = None, order_by: str | None = None):
+    async def find_all(
+        cls,
+        session: AsyncSession,
+        filters: BaseModel | None = None,
+        order_by: str | None = None,
+    ):
         filter_dict = filters.model_dump(exclude_unset=True) if filters else {}
         logger.info(
             f"Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict}"
@@ -110,7 +114,7 @@ class BaseDAO:
             stmt = select(cls.model).filter_by(**filter_dict)
             result = await session.execute(stmt)
             obj = result.scalar_one_or_none()
-            
+
             if obj:
                 await session.delete(obj)
                 await session.flush()
@@ -119,30 +123,28 @@ class BaseDAO:
             else:
                 logger.warning(f"Запись для удаления не найдена")
                 return 0
-                
+
         except SQLAlchemyError as e:
             await session.rollback()
             logger.error(f"Ошибка при удалении записей: {e}")
             raise e
-        
+
     @classmethod
     async def update(cls, session: AsyncSession, values: BaseModel, filters: BaseModel):
         values_dict = values.model_dump(exclude_unset=True)
         filter_dict = filters.model_dump(exclude_unset=True)
 
-        logger.info(f"Обновление записи {cls.model.__name__} с параметрами: {values_dict}")
-        
+        logger.info(
+            f"Обновление записи {cls.model.__name__} с параметрами: {values_dict}"
+        )
+
         try:
-            query = (
-                update(cls.model)
-                .filter_by(**filter_dict)
-                .values(**values_dict)
-            )
+            query = update(cls.model).filter_by(**filter_dict).values(**values_dict)
             await session.execute(query)
             await session.flush()
-            
+
             logger.info(f"Запись {cls.model.__name__} успешно обновлена")
-            
+
         except SQLAlchemyError as e:
             logger.error(f"Ошибка при обновлении записи: {e}")
             raise

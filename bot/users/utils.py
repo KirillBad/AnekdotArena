@@ -5,12 +5,15 @@ from anecdotes.dao import RateDAO
 from anecdotes.schemas import RateModelUserId
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
+from payments.dao import DonationDAO
 
 
 async def get_start_text(message: Message, session: AsyncSession) -> tuple[str, dict]:
     user_info = await UserDAO.find_one_or_none(
         session=session, filters=TelegramIDModel(telegram_id=message.from_user.id)
     )
+
+    total_donation = await DonationDAO.sum_amount(session)
 
     if not user_info:
         values = UserModel(
@@ -24,7 +27,7 @@ async def get_start_text(message: Message, session: AsyncSession) -> tuple[str, 
 
     rates = await RateDAO.count(session, filters=RateModelUserId(user_id=user_info.id))
 
-    text = f"⚔️ Добро пожаловать на <b>Анекдот Арену</b> 🛡️\n\n🎁 Пиши шутки и зарабатывай ⭐\n\n📝 Оценено анекдотов: <b>{rates}</b> 🔎"
+    text = f"⚔️ Добро пожаловать на <b>Анекдот Арену</b> 🛡️\n\n🎁 Пиши шутки и зарабатывай ⭐\n\n💰 Призовой фонд: <b>{total_donation}</b> ⭐️\n\n📝 Оценено анекдотов: <b>{rates}</b> 🔎"
     kb = main_user_kb(message.from_user.id)
 
     return text, kb

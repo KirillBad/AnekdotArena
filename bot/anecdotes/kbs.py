@@ -42,38 +42,46 @@ def rated_anecdote_kb(value: int) -> InlineKeyboardMarkup:
     kb.adjust(1)
     return kb.as_markup()
 
+
 def reported_anecdote_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="🚨 Жалоба отправлена", callback_data="pass")
     kb.adjust(1)
     return kb.as_markup()
 
-def pagination_anecdotes_kb(current_page: int, total_pages: int, source: str) -> InlineKeyboardMarkup:
+
+def pagination_anecdotes_kb(
+    current_page: int, total_pages: int, source: str
+) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     button_counter = 1
     if current_page > 1:
         kb.button(
-            text="⬅️", 
-            callback_data=PaginationCallbackFactory(action="select_page", page=current_page-1)
+            text="⬅️",
+            callback_data=PaginationCallbackFactory(
+                action="select_page", page=current_page - 1
+            ),
         )
         button_counter += 1
 
     page_emoji = {1: "🥇", 2: "🥈", 3: "🥉"}.get(current_page, "📄")
-    kb.button(text=f"{page_emoji} {current_page}/{total_pages}", callback_data="current_page")
-    
+    kb.button(text=f"{page_emoji} {current_page}/{total_pages}", callback_data="pass")
+
     if current_page < total_pages:
         kb.button(
-            text="➡️", 
-            callback_data=PaginationCallbackFactory(action="select_page", page=current_page+1)
+            text="➡️",
+            callback_data=PaginationCallbackFactory(
+                action="select_page", page=current_page + 1
+            ),
         )
         button_counter += 1
 
     if source == "top_anecdotes":
         kb.button(text="Отправить подарок автору 🎁", callback_data="select_gift")
-        kb.button(text="↩️Назад", callback_data="start")
+        kb.button(text="↩️ Назад", callback_data="start")
         kb.adjust(button_counter, 1, 1)
     elif source == "my_anecdotes":
-        kb.button(text="↩️Назад", callback_data="start")
+        kb.button(text="↩️ Назад", callback_data="start")
         kb.adjust(button_counter, 1)
-        
+
     return kb.as_markup()

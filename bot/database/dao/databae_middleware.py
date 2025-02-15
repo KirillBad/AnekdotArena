@@ -12,18 +12,18 @@ class BaseDatabaseMiddleware(BaseMiddleware):
         data: Dict[str, Any],
     ) -> Any:
         async with async_session_maker() as session:
-            self.set_session(data, session)  # Устанавливаем сессию
+            self.set_session(data, session)
             try:
-                result = await handler(event, data)  # Обрабатываем событие
+                result = await handler(event, data)
                 await self.after_handler(
                     session
-                )  # Дополнительные действия (например, коммит)
+                )
                 return result
             except Exception as e:
-                await session.rollback()  # Откат изменений в случае ошибки
+                await session.rollback()
                 raise e
             finally:
-                await session.close()  # Закрываем сессию
+                await session.close()
 
     def set_session(self, data: Dict[str, Any], session) -> None:
         """Метод для установки сессии в данные. Реализуется в дочерних классах."""

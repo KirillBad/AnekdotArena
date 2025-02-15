@@ -1,5 +1,5 @@
 from database.dao.base import BaseDAO
-from anecdotes.model import Anecdote, Rate
+from anecdotes.models import Anecdote, Rate
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func, select, desc
 from sqlalchemy.exc import SQLAlchemyError
@@ -45,21 +45,21 @@ class AnecdoteDAO(BaseDAO):
                 select(
                     cls.model.id,
                     cls.model.content,
-                    func.coalesce(func.avg(Rate.rating), 0).label('avg_rating')
+                    func.coalesce(func.avg(Rate.rating), 0).label("avg_rating"),
                 )
                 .filter_by(**filter_dict)
-                .outerjoin(Rate, cls.model.id == Rate.anecdote_id) 
+                .outerjoin(Rate, cls.model.id == Rate.anecdote_id)
                 .group_by(cls.model.id, cls.model.content)
-                .order_by(desc('avg_rating'))
+                .order_by(desc("avg_rating"))
             )
 
             result = await session.execute(query)
             records = result.all()
-            
+
             logger.info(f"Найдено {len(records)} анекдотов")
 
             return records
-            
+
         except SQLAlchemyError as e:
             logger.error(f"Ошибка при получении анекдотов с рейтингом: {e}")
             raise
@@ -77,19 +77,20 @@ class RateDAO(BaseDAO):
                     cls.model.anecdote_id,
                     Anecdote.content,
                     Anecdote.user_id,
-                    func.avg(cls.model.rating).label('avg_rating'),
+                    func.avg(cls.model.rating).label("avg_rating"),
                 )
                 .join(Anecdote, cls.model.anecdote_id == Anecdote.id)
                 .group_by(cls.model.anecdote_id, Anecdote.content, Anecdote.user_id)
-                .order_by(desc('avg_rating')).limit(10)
+                .order_by(desc("avg_rating"))
+                .limit(10)
             )
-            
+
             result = await session.execute(query)
             records = result.all()
-            
+
             logger.info(f"Найдено {len(records)} анекдотов для топа")
             return records
-            
+
         except SQLAlchemyError as e:
             logger.error(f"Ошибка при получении топ анекдотов: {e}")
             raise

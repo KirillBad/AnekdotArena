@@ -1,4 +1,5 @@
-from users.model import User
-from anecdotes.model import Anecdote, Rate
+from users.models import User
+from anecdotes.models import Anecdote, Rate
+from payments.models import Gift, Donation
 
-__all__ = ["User", "Anecdote", "Rate"]
+__all__ = ["User", "Anecdote", "Rate", "Gift", "Donation"]

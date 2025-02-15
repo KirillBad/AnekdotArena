@@ -1,10 +1,8 @@
-from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from anecdotes.dao import AnecdoteDAO
 from anecdotes.states import RateStates
 from anecdotes.kbs import rate_anecdote_kb, back_to_start_kb
-from users.kbs import main_user_kb
 
 
 async def send_next_anecdote(
@@ -32,5 +30,6 @@ async def send_next_anecdote(
     else:
         await state.clear()
         await message.answer(
-            text="Вы оценили все анекдоты😔\n\nВозвращайтесь позже ☺️", reply_markup=back_to_start_kb()
+            text="Вы оценили все анекдоты😔\n\nВозвращайтесь позже ☺️",
+            reply_markup=back_to_start_kb(),
         )
