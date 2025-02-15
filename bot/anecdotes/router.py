@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from anecdotes.utils import send_next_anecdote
 from sqlalchemy.ext.asyncio import AsyncSession
 from anecdotes.dao import AnecdoteDAO, RateDAO
+from pydantic import ValidationError
 from users.dao import UserDAO
 from users.utils import get_start_text
 from users.schemas import TelegramIDModel
